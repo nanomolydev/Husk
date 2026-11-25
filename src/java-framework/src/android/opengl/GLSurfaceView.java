@@ -59,9 +59,11 @@ public class GLSurfaceView extends android.view.SurfaceView implements android.v
     /** @hide */
     public static void huskProcessKilled() { sProcessGeneration++; }
     /** @hide Husk's GL thread: one frame, unless the view is paused or its process is gone. */
-    public final void huskDrawFrame(GL10 gl) { if (paused || renderer == null || mGeneration != sProcessGeneration) return; renderer.onDrawFrame(gl); }
+    public final boolean huskDrawFrame(GL10 gl) { if (paused || renderer == null || mGeneration != sProcessGeneration) return false; renderer.onDrawFrame(gl); return true; }
     public void onResume() { paused = false; dirty = true; }
-    public void queueEvent(Runnable r) { synchronized (queue) { queue.add(r); } husk.Native.requestRender(); }
+    /* run on the GL thread before its next frame (huskBeginFrame, sixty times a second); as on Android it asks for no frame of its
+       own -- a game drawing at 30 fps got extra, half-drawn frames for every touch and sensor event it queued */
+    public void queueEvent(Runnable r) { synchronized (queue) { queue.add(r); } }
     @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); start(); }
     private void start() {
         if (renderer == null || started) return;

@@ -946,6 +946,7 @@ static void *gl_main(void *arg)
     tl_log_line("javaapp: render thread ready (ES %d available), %dx%d", es3 ? 3 : 2, A.cfg.width, A.cfg.height);
 
     jobj *gl10 = NULL, *app_renderer = NULL, *app_view = NULL;
+    int64_t last_app_draw = 0; bool ui_waits = false;
     jvalue p1[1];
     unsigned (*destroyContext)(EGLDisplay, EGLContext) = tl_egl_resolve("eglDestroyContext");
     int64_t next = now_ns();
@@ -1012,20 +1013,26 @@ static void *gl_main(void *arg)
                 if (tl_jni_pending()) log_pending("onSurfaceChanged");
                 draw.z = true;
             }
-            /* a new frame of views needs the scene under it again: what was swapped is gone */
-            if (draw.z || fresh || atomic_exchange(&A.render_requested, false)) {
+            /* a new frame of views needs the scene under it again: what was swapped is gone. But a renderer that paces itself (a
+               GameMaker game at 30 fps) does not draw a whole frame when it is called out of step, and swapping after such a call
+               shows a frame without its text and buttons: the views' new frame waits for the app's next one, and only an app that
+               has drawn nothing for a tenth of a second is asked to draw for it */
+            bool asked = atomic_exchange(&A.render_requested, false);
+            if (fresh) ui_waits = true;
+            bool ui_due = ui_waits && now_ns() - last_app_draw > 100000000ll;
+            if (draw.z || asked || ui_due) {
                 /* through the view, which skips the frame while it is paused; and not for a view another has replaced */
                 if (__atomic_load_n(&A.gl_renderer, __ATOMIC_ACQUIRE) == app_renderer) {
-                    tl_jni_call(app_view, "huskDrawFrame", "(Ljavax/microedition/khronos/opengles/GL10;)V", p1);
+                    jvalue did = tl_jni_call(app_view, "huskDrawFrame", "(Ljavax/microedition/khronos/opengles/GL10;)Z", p1);
                     if (tl_jni_pending()) log_pending("onDrawFrame");
+                    else if (did.z) { drew = true; last_app_draw = now_ns(); ui_waits = false; }   /* nothing drawn: nothing to swap */
                 }
-                drew = true;
             }
         }
         uint64_t q = app_frame_seq();
         bool app_fresh = q != app_seq;
         app_seq = q;
-        if (drew || fresh || app_fresh) {
+        if (drew || (!app && (fresh || app_fresh))) {
             makeCurrent(dpy, surf, surf, ui);
             if (!app) { clearColor(0, 0, 0, tl_web_any_visible() && !app_frame_on() ? 0 : 1); clear(0x4000); }     /* web views show through from under the screen */
             if (!app) app_frame_draw(&appov, &appup, A.cfg.width, A.cfg.height);

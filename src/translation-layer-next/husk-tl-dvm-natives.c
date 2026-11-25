@@ -453,6 +453,11 @@ NAT(JarFile_getMetaInfEntryNames)
     dvm_class *zc = dvm_class_of(dvm_class_named("java/util/zip/ZipFile"));
     dvm_field *f = zc ? dvm_find_field(zc, "name", false) : NULL;
     const char *path = f ? tl_jni_string(dvm_slots(self)[f->slot].l) : NULL;
+    /* the app's own APK: no signature files, so JarFile reads it unverified. The class loader opens it as a JarFile for every
+       getResourceAsStream, and verifying a large APK builds its whole manifest twice over (VK's has 39,000 entries: half a
+       gigabyte of strings in a runtime that frees nothing). Android installed the APK from this very file. */
+    { const char *tl_javaapp_apk_path(void); const char *apk = tl_javaapp_apk_path();
+      if (path && apk && apk[0] && !strcmp(path, apk)) { *ret = L(NULL); return true; } }
     tl_zip z; char err[160];
     if (!path || !tl_zip_open(&z, path, err, sizeof(err))) { *ret = L(NULL); return true; }
     const char **v = NULL; int n = 0;

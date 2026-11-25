@@ -275,6 +275,9 @@ NAT(N_requestRender) { (void)self; (void)a; (void)ret; atomic_store(&A.render_re
 NAT(N_setContentView) { (void)self; (void)ret; A.content = a[0].l; return true; }
 NAT(N_vibrate) { (void)self; (void)a; (void)ret; if (A.cfg.vibrate) A.cfg.vibrate((int)a[0].j); return true; }
 NAT(N_openUrl) { (void)self; (void)ret; const char *u = tl_jni_string(a[0].l); tl_log_line("javaapp: open %s", u ? u : "?"); if (A.cfg.open_url && u) A.cfg.open_url(u); return true; }
+/* Process.killProcess with an activity of the app's own on its way: JNI methods bind to the libraries loaded from here on */
+NAT(N_processRestarted) { (void)self; (void)a; (void)ret; void tl_ld_jni_restart(void); tl_ld_jni_restart(); tl_log_line("javaapp: the app restarts its process; JNI methods bind to libraries loaded from now on"); return true; }
+const char *tl_javaapp_apk_path(void);
 NAT(N_exit) { (void)self; (void)a; (void)ret; tl_log_line("javaapp: the app finished"); atomic_store(&A.ended, true); return true; }
 NAT(N_uptimeNanos) { (void)self; (void)a; struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); *ret = J((int64_t)t.tv_sec * 1000000000ll + t.tv_nsec); return true; }
 NAT(N_pollInput)
@@ -499,6 +502,7 @@ static const struct { const char *name, *sig; dvm_native_fn fn; } k_native[] = {
     { "vibrate", "(J)V", N_vibrate },
     { "openUrl", "(Ljava/lang/String;)V", N_openUrl },
     { "exit", "()V", N_exit },
+    { "processRestarted", "()V", N_processRestarted },
     { "uptimeNanos", "()J", N_uptimeNanos },
     { "readApkFile", "(ILjava/lang/String;)[B", N_readApkFile },
     { "splitPaths", "()[Ljava/lang/String;", N_splitPaths },
@@ -1262,3 +1266,4 @@ void tl_javaapp_set_paused(bool p)
 }
 unsigned long tl_javaapp_frames(void) { return atomic_load(&A.frames); }
 bool tl_javaapp_ended(void) { return atomic_load(&A.ended); }
+const char *tl_javaapp_apk_path(void) { return A.apk; }

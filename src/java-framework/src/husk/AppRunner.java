@@ -308,13 +308,14 @@ public final class AppRunner {
             if (sPendingLaunches > 0) {
                 sRestartRequested = true;
                 android.opengl.GLSurfaceView.huskProcessKilled();
+                Native.processRestarted();
                 android.util.Log.i("Husk", "killProcess with an activity of its own on the way: the app restarts into it");
-            } else { Native.exit(); return; }
+                /* returns to the caller, which on Android would be dead: GameMaker calls this from inside onDrawFrame, on Husk's
+                   one render thread, which the new activity needs (parked here, nothing drew again) */
+                return;
+            }
         }
-        /* the calling thread dies with the process on Android; the main thread has to go on, to launch the new activity */
-        if (Looper.myLooper() != Looper.getMainLooper()) {
-            while (true) { try { Thread.sleep(Long.MAX_VALUE); } catch (InterruptedException e) {} }
-        }
+        Native.exit();
     }
     /** Activity.finish: the one below comes back (with the result when it asked for one). */
     public static void finish(Activity a) { sHandler.post(() -> finishNow(a, true)); }

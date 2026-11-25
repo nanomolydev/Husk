@@ -1010,8 +1010,11 @@ static void *gl_main(void *arg)
             }
             /* a new frame of views needs the scene under it again: what was swapped is gone */
             if (draw.z || fresh || atomic_exchange(&A.render_requested, false)) {
-                tl_jni_call(app_renderer, "onDrawFrame", "(Ljavax/microedition/khronos/opengles/GL10;)V", p1);
-                if (tl_jni_pending()) log_pending("onDrawFrame");
+                /* through the view, which skips the frame while it is paused; and not for a view another has replaced */
+                if (__atomic_load_n(&A.gl_renderer, __ATOMIC_ACQUIRE) == app_renderer) {
+                    tl_jni_call(app_view, "huskDrawFrame", "(Ljavax/microedition/khronos/opengles/GL10;)V", p1);
+                    if (tl_jni_pending()) log_pending("onDrawFrame");
+                }
                 drew = true;
             }
         }

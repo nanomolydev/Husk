@@ -50,7 +50,12 @@ public class GLSurfaceView extends android.view.SurfaceView implements android.v
     public void setRenderMode(int m) { renderMode = m; dirty = true; }
     public int getRenderMode() { return renderMode; }
     public void requestRender() { dirty = true; husk.Native.requestRender(); }
-    public void onPause() { paused = true; }
+    /* as GLThread's pause handshake: onPause returns once the frame being drawn is done, and no frame is drawn while paused (a
+       GameMaker runner blocks in onDrawFrame once paused, which stalled Husk's one render thread) */
+    private final Object drawLock = new Object();
+    public void onPause() { synchronized (drawLock) { paused = true; } }
+    /** @hide Husk's GL thread: one frame, unless the view is paused. */
+    public final void huskDrawFrame(GL10 gl) { synchronized (drawLock) { if (paused || renderer == null) return; renderer.onDrawFrame(gl); } }
     public void onResume() { paused = false; dirty = true; }
     public void queueEvent(Runnable r) { synchronized (queue) { queue.add(r); } husk.Native.requestRender(); }
     @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); start(); }
@@ -74,6 +79,7 @@ public class GLSurfaceView extends android.view.SurfaceView implements android.v
             }
         }
         husk.Native.startGL(this, renderer, version);
+        husk.ViewRoot.huskGLTakesScreen();
     }
 
     private static HuskGL10 sGL;

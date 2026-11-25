@@ -34,6 +34,7 @@ public final class AppRunner {
     public static void resetSession() {
         sStack.clear();
         synchronized (AppRunner.class) { sPendingLaunches = 0; sRestartRequested = false; }
+        ViewRoot.huskGLReset();
         sApp = null;
         sHandler = null;
         down = 0;

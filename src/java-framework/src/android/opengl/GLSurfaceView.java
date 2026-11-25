@@ -94,6 +94,8 @@ public class GLSurfaceView extends android.view.SurfaceView implements android.v
     public final boolean huskBeginFrame() {
         ArrayList<Runnable> run;
         synchronized (queue) { run = new ArrayList<>(queue); queue.clear(); }
+        /* a killed process's GL thread is gone: what it queued never runs (a paused GameMaker runner's pause event waits for good) */
+        if (mGeneration != sProcessGeneration) return false;
         for (Runnable r : run) r.run();
         if (paused) return false;
         if (renderMode == RENDERMODE_CONTINUOUSLY) return true;

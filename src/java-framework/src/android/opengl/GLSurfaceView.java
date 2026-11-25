@@ -50,12 +50,16 @@ public class GLSurfaceView extends android.view.SurfaceView implements android.v
     public void setRenderMode(int m) { renderMode = m; dirty = true; }
     public int getRenderMode() { return renderMode; }
     public void requestRender() { dirty = true; husk.Native.requestRender(); }
-    /* as GLThread's pause handshake: onPause returns once the frame being drawn is done, and no frame is drawn while paused (a
-       GameMaker runner blocks in onDrawFrame once paused, which stalled Husk's one render thread) */
-    private final Object drawLock = new Object();
-    public void onPause() { synchronized (drawLock) { paused = true; } }
-    /** @hide Husk's GL thread: one frame, unless the view is paused. */
-    public final void huskDrawFrame(GL10 gl) { synchronized (drawLock) { if (paused || renderer == null) return; renderer.onDrawFrame(gl); } }
+    public void onPause() { paused = true; }
+    /* the process this view belongs to was killed (Process.killProcess with a new activity of the app's own on its way): on Android
+       its GL thread dies with it, so its renderer never draws again -- a paused GameMaker runner blocks in onDrawFrame for good,
+       and with it Husk's one render thread */
+    private static volatile int sProcessGeneration;
+    private final int mGeneration = sProcessGeneration;
+    /** @hide */
+    public static void huskProcessKilled() { sProcessGeneration++; }
+    /** @hide Husk's GL thread: one frame, unless the view is paused or its process is gone. */
+    public final void huskDrawFrame(GL10 gl) { if (paused || renderer == null || mGeneration != sProcessGeneration) return; renderer.onDrawFrame(gl); }
     public void onResume() { paused = false; dirty = true; }
     public void queueEvent(Runnable r) { synchronized (queue) { queue.add(r); } husk.Native.requestRender(); }
     @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); start(); }

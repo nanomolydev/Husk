@@ -307,6 +307,7 @@ public final class AppRunner {
         synchronized (AppRunner.class) {
             if (sPendingLaunches > 0) {
                 sRestartRequested = true;
+                android.opengl.GLSurfaceView.huskProcessKilled();
                 android.util.Log.i("Husk", "killProcess with an activity of its own on the way: the app restarts into it");
             } else { Native.exit(); return; }
         }
